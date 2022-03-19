@@ -8,6 +8,10 @@ const storage = new Storage({keyFilename: 'service-account.json'});
 
 const crypto = require('crypto');
 
+const mmm = require('mmmagic');
+const Magic = mmm.Magic;
+const magic = new Magic(mmm.MAGIC_MIME_TYPE);
+
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,6 +21,18 @@ app.use(fileUpload());
 
 app.use(express.static('public'));
 
+async function detectType(buffer) {
+  return new Promise((resolve, reject) => {
+    magic.detect(buffer, (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+}
+
 app.post('/upload', async function(req, res) {
   if (!req.files || Object.keys(req.files).length === 0) {
     return res.status(400).send('No files were uploaded.');
@@ -25,7 +41,14 @@ app.post('/upload', async function(req, res) {
   const inputFile = req.files.document;
   const inputBuffer = inputFile.data;
 
-  let outputBuffer = await libre.convertAsync(inputBuffer, '.pdf', undefined);
+  let outputBuffer;
+
+  const type = await detectType(inputBuffer);
+  if (type !== 'application/pdf') {
+    outputBuffer = await libre.convertAsync(inputBuffer, '.pdf', undefined);
+  } else {
+    outputBuffer = inputBuffer;
+  }
 
   const filename = crypto.randomUUID() + ".pdf";
 
